@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  pyspark-job:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pyspark-sagemaker-local
+    ports:
+      - "4040:4040"  # Spark UI
+      - "8888:8888"  # Jupyter (if needed)
+      - "8080:8080"  # Spark Master UI
+    volumes:
+      # Mount source code for hot reloading
+      - .:/opt/ml/code
+      # Mount data directories
+      - ./data:/opt/ml/code/data
+      # Mount logs
+      - ./logs:/opt/ml/code/logs
+    environment:
+      - PYTHONPATH=/opt/ml/code
+      - PYTHONUNBUFFERED=1
+      - JAVA_HOME=/usr/lib/jvm/default-java
+      # SageMaker environment simulation
+      - SM_CHANNEL_INPUT=/opt/ml/code/data/input
+      - SM_CHANNEL_OUTPUT=/opt/ml/code/data/output
+      - SAGEMAKER_ENABLED=true
+    working_dir: /opt/ml/code
+    command: ["python", "jobs/data_processing_job.py"]
+    networks:
+      - pyspark-network
+    restart: unless-stopped
+
+  # Optional: Add a Jupyter service for interactive development
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pyspark-jupyter
+    ports:
+      - "8889:8888"
+    volumes:
+      - .:/opt/ml/code
+      - ./data:/opt/ml/code/data
+      - ./logs:/opt/ml/code/logs
+    environment:
+      - PYTHONPATH=/opt/ml/code
+      - PYTHONUNBUFFERED=1
+    working_dir: /opt/ml/code
+    command: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+    networks:
+      - pyspark-network
+    profiles:
+      - jupyter
+
+networks:
+  pyspark-network:
+    driver: bridge
+
+volumes:
+  pyspark-data: 
